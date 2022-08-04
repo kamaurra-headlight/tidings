@@ -36,6 +36,7 @@
     "bignumber.js": "^2.4.0",
     "chance": "^1.0.4",
     "cheerio": "^0.22.0",
+    "cls-hooked": "^4.2.2",
     "dropbag": "^1.0.10",
     "fable": "^2.0.5",
     "luxon": "^2.4.0",

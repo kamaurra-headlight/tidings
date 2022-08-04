@@ -57,9 +57,15 @@ const Tidings = function()
 		_Libraries.Cheerio = require('cheerio');
 		_Libraries.Request = require('request');
 		_Libraries.Luxon = require('luxon');
+		_Libraries.Context = require('cls-hooked');
 		const libChance = require('chance');
 		_Libraries.Chance = new libChance();
 
+		const _requestContext = _Libraries.Context.createNamespace('tidings-request');
+		const requestContext = () =>
+		{
+			return _requestContext;
+		}
 
 		const doReportRender = require('./behaviors/Tidings-ReportRender.js');
 		const render = (pDatum, fCallback) =>
@@ -78,6 +84,27 @@ const Tidings = function()
 			if (!tmpDatum.TidingsData.Type)
 			{
 				tmpDatum.TidingsData.Type = 'default';
+			}
+
+			if (!tmpDatum.hasOwnProperty('Config'))
+			{
+				tmpDatum.Config = {};
+			}
+			const context = requestContext();
+			if (context)
+			{
+				const requestingApp = context.get('requestingApp');
+				if (requestingApp)
+				{
+					tmpDatum.Config.Http =
+					{
+						Headers:
+						{
+							'X-Application-Name': requestingApp.Name,
+							'X-Application-Version': requestingApp.Version,
+						}
+					};
+				}
 			}
 
 			doReportRender(pDatum, _Fable, tmpCallback);
@@ -153,6 +180,32 @@ const Tidings = function()
 			fNext();
 		};
 
+		const wireRequestContext = (pRequest, pResponse, fNext) =>
+		{
+			const context = requestContext();
+			context.run(() =>
+			{
+				//TODO: really these should be in orator and orator-session
+				//      but this is ok for now
+				context.set('session', pRequest.UserSession);
+				context.set('request',
+					{
+						UUID: pRequest.RequestUUID,
+						URL: pRequest.url,
+					});
+				const requestingApp =
+				{
+					Name: pRequest.header('X-Application-Name'),
+					Version: pRequest.header('X-Application-Version'),
+				};
+				if (requestingApp.Name)
+				{
+					context.set('requestingApplication', requestingApp);
+				}
+				fNext();
+			});
+		};
+
 		// The default endpoints
 		const _Endpoints = (
 		{
@@ -188,19 +241,19 @@ const Tidings = function()
 
 			_Fable.log.trace('Creating report endpoints', {Root:tmpReportRoot});
 
-			pRestServer.post(tmpReportRoot, wireTidings, _Endpoints.ReportRender);
-			pRestServer.post(tmpReportRoot + 'Sync', wireTidings, _Endpoints.ReportRenderSync);
-			pRestServer.post(tmpReportRoot + '/Run/Wait', wireTidings, _Endpoints.ReportRun);
-			pRestServer.get(tmpReportRoot + '/Manifest/:UUID', wireTidings, _Endpoints.ReportManifest);
-			pRestServer.get(tmpReportRoot + '/Datum/:UUID', wireTidings, _Endpoints.ReportData);
-			pRestServer.get(tmpReportRoot + '/:UUID/Default', wireTidings, _Endpoints.ReportDefaultFile);
-			pRestServer.get(tmpReportRoot + '/:UUID/Assets/:FileName', wireTidings, _Endpoints.ReportAssetFile);
-			pRestServer.get(tmpReportRoot + '/:UUID/:FileName', wireTidings, _Endpoints.ReportFile);
-			pRestServer.get(tmpReportRoot + '/Run/:ReportType/:FileName', wireTidings, _Endpoints.ReportCommonFile);
-			pRestServer.get(tmpReportRoot + '/:UUID/:ReportType/:FileName', wireTidings, _Endpoints.ReportCommonFile);
+			pRestServer.post(tmpReportRoot, wireRequestContext, wireTidings, _Endpoints.ReportRender);
+			pRestServer.post(tmpReportRoot + 'Sync', wireRequestContext, wireTidings, _Endpoints.ReportRenderSync);
+			pRestServer.post(tmpReportRoot + '/Run/Wait', wireRequestContext, wireTidings, _Endpoints.ReportRun);
+			pRestServer.get(tmpReportRoot + '/Manifest/:UUID', wireRequestContext, wireTidings, _Endpoints.ReportManifest);
+			pRestServer.get(tmpReportRoot + '/Datum/:UUID', wireRequestContext, wireTidings, _Endpoints.ReportData);
+			pRestServer.get(tmpReportRoot + '/:UUID/Default', wireRequestContext, wireTidings, _Endpoints.ReportDefaultFile);
+			pRestServer.get(tmpReportRoot + '/:UUID/Assets/:FileName', wireRequestContext, wireTidings, _Endpoints.ReportAssetFile);
+			pRestServer.get(tmpReportRoot + '/:UUID/:FileName', wireRequestContext, wireTidings, _Endpoints.ReportFile);
+			pRestServer.get(tmpReportRoot + '/Run/:ReportType/:FileName', wireRequestContext, wireTidings, _Endpoints.ReportCommonFile);
+			pRestServer.get(tmpReportRoot + '/:UUID/:ReportType/:FileName', wireRequestContext, wireTidings, _Endpoints.ReportCommonFile);
 			// This is too inclusive
 			const tmpGlobalRegexp = /\/.*/;
-			pRestServer.get(tmpGlobalRegexp, wireTidings, _Endpoints.ReportCommonFile);
+			pRestServer.get(tmpGlobalRegexp, wireRequestContext, wireTidings, _Endpoints.ReportCommonFile);
 		};
 
 		let _Orator = false;
