@@ -282,6 +282,15 @@ const Tidings = function()
 		};
 
 		/**
+		 * allow caller to set a hook that will be used to inject configuration for reports
+		 * 'provider' - function(config:object) -> (returns) config:object updated
+		 */
+		tmpNewTidingsObject.setReportConfigProvider = ((provider) =>
+		{
+			tmpNewTidingsObject.reportConfigProvider = provider;
+		});
+
+		/**
 		 * Endpoints
 		 *
 		 * @property endpoints

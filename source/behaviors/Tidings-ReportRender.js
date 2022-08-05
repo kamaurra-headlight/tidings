@@ -94,6 +94,10 @@ module.exports = (pDatum, pFable, fCallback) =>
 			// : Fill out the defaults in the Datum if they don't exist
 			(pState, fStageComplete) =>
 			{
+				if (typeof(pState.Fable.Tidings.reportConfigProvider) === 'function')
+				{
+					pState.Config = pState.Fable.Tidings.reportConfigProvider(pState.Config || {});
+				}
 				fStageComplete(null, pState);
 			},
 			// : Create a manifest
